@@ -1,0 +1,248 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Utilisateur {
+  id_utilisateur    String    @id @default(cuid())
+  nom_utilisateur   String    @db.VarChar(100)
+  email             String    @unique @db.VarChar(150)
+  mot_de_passe      String    @db.VarChar(255)
+  role              Role      @default(CAISSIER)
+  statut            Statut    @default(ACTIF)
+  dernier_login     DateTime?
+  date_creation     DateTime  @default(now())
+
+  // Relations
+  ventes            Vente[]
+  audits            Audit[]
+
+  @@map("utilisateurs")
+}
+
+model Client {
+  id_client         String    @id @default(cuid())
+  nom               String    @db.VarChar(100)
+  prenom            String?   @db.VarChar(100)
+  telephone         String    @db.VarChar(20)
+  email             String?   @db.VarChar(150)
+  adresse           String?   @db.VarChar(255)
+  code_client       String    @unique @db.VarChar(20)
+  supprime          Boolean   @default(false)
+  date_creation     DateTime  @default(now())
+
+  // Relations
+  ventes            Vente[]
+
+  @@map("clients")
+}
+
+model CategorieProduit {
+  id_categorie      String    @id @default(cuid())
+  nom               String    @db.VarChar(100)
+  description       String?   @db.Text
+  supprime          Boolean   @default(false)
+
+  // Relations
+  produits          Produit[]
+  promotions        Promotion[]
+
+  @@map("categories_produits")
+}
+
+model Produit {
+  id_produit        String    @id @default(cuid())
+  nom               String    @db.VarChar(150)
+  description       String?   @db.Text
+  photo             String?   @db.VarChar(255)
+  prix_unitaire     Decimal   @db.Decimal(10, 2)
+  stock             Int
+  stock_min         Int       @default(5)
+  code_produit      String    @unique @db.VarChar(50)
+  id_categorie      String
+  actif             Boolean   @default(true)
+  supprime          Boolean   @default(false)
+  date_creation     DateTime  @default(now())
+
+  // Relations
+  categorie         CategorieProduit @relation(fields: [id_categorie], references: [id_categorie])
+  lignes_vente      LigneVente[]
+  promotions        Promotion[]
+
+  @@map("produits")
+}
+
+model Vente {
+  id_vente          String    @id @default(cuid())
+  numero_vente      String    @unique @db.VarChar(50)
+  date_vente        DateTime
+  id_caissier       String
+  id_client         String?
+  total_brut        Decimal   @db.Decimal(10, 2)
+  remise_total      Decimal   @db.Decimal(10, 2) @default(0)
+  total_net         Decimal   @db.Decimal(10, 2)
+  statut_vente      StatutVente @default(COMMANDE)
+  commentaire       String?   @db.Text
+  date_creation     DateTime  @default(now())
+  date_modification DateTime  @updatedAt
+
+  // Relations
+  caissier          Utilisateur @relation(fields: [id_caissier], references: [id_utilisateur])
+  client            Client?   @relation(fields: [id_client], references: [id_client])
+  lignes_vente      LigneVente[]
+  paiements         Paiement[]
+  facture           Facture?
+
+  @@map("ventes")
+}
+
+model LigneVente {
+  id_ligne              String    @id @default(cuid())
+  id_vente              String
+  id_produit            String
+  quantite              Int
+  prix_unitaire         Decimal   @db.Decimal(10, 2)
+  type_remise_ligne     TypeRemise?
+  valeur_remise_ligne   Decimal   @db.Decimal(10, 2) @default(0)
+  sous_total            Decimal   @db.Decimal(10, 2)
+
+  // Relations
+  vente                 Vente     @relation(fields: [id_vente], references: [id_vente])
+  produit               Produit   @relation(fields: [id_produit], references: [id_produit])
+
+  @@map("lignes_vente")
+}
+
+model Paiement {
+  id_paiement       String    @id @default(cuid())
+  id_vente          String
+  date_paiement     DateTime
+  montant           Decimal   @db.Decimal(10, 2)
+  mode_paiement     ModePaiement
+  statut_paiement   StatutPaiement @default(VALIDE)
+  numero_paiement   String    @unique @db.VarChar(30)
+  reference         String?   @db.VarChar(150)
+  commentaire       String?   @db.Text
+
+  // Relations
+  vente             Vente     @relation(fields: [id_vente], references: [id_vente])
+
+  @@map("paiements")
+}
+
+model Facture {
+  id_facture        String    @id @default(cuid())
+  id_vente          String    @unique
+  numero_facture    String    @unique @db.VarChar(50)
+  date_emission     DateTime
+  montant_total     Decimal   @db.Decimal(10, 2)
+  statut_facture    StatutFacture @default(GENEREE)
+  pdf_url           String?   @db.VarChar(255)
+
+  // Relations
+  vente             Vente     @relation(fields: [id_vente], references: [id_vente])
+
+  @@map("factures")
+}
+
+model Promotion {
+  id_promotion      String    @id @default(cuid())
+  nom               String    @db.VarChar(150)
+  code_promotion    String    @unique @db.VarChar(20)
+  description       String?   @db.Text
+  type_promo        TypeRemise
+  valeur            Decimal   @db.Decimal(10, 2)
+  date_debut        DateTime
+  date_fin          DateTime
+  id_produit        String?
+  id_categorie      String?
+  supprime          Boolean   @default(false)
+
+  // Relations
+  produit           Produit?  @relation(fields: [id_produit], references: [id_produit])
+  categorie         CategorieProduit? @relation(fields: [id_categorie], references: [id_categorie])
+
+  @@map("promotions")
+}
+
+model Audit {
+  id_audit          String    @id @default(cuid())
+  id_utilisateur    String
+  table_affectee    String    @db.VarChar(100)
+  action            ActionAudit
+  details           Json?
+  ip_adresse        String    @db.VarChar(45)
+  device_info       String?   @db.VarChar(255)
+  date_action       DateTime  @default(now())
+
+  // Relations
+  utilisateur       Utilisateur @relation(fields: [id_utilisateur], references: [id_utilisateur])
+
+  @@map("audit")
+}
+
+// Enums
+enum Role {
+  ADMIN
+  RESP_STOCK
+  CAISSIER
+}
+
+enum Statut {
+  ACTIF
+  INACTIF
+  BLOQUE
+}
+
+enum StatutVente {
+  COMMANDE
+  EN_COURS
+  PAYEE
+  REMBOURSEE
+  ANNULEE
+}
+
+enum TypeRemise {
+  MONTANT
+  POURCENTAGE
+}
+
+enum ModePaiement {
+  CASH
+  CARTE
+  MOBILE_MONEY
+  CHEQUE
+  AUTRE
+}
+
+enum StatutPaiement {
+  EN_ATTENTE
+  VALIDE
+  REFUSE
+}
+
+enum StatutFacture {
+  GENEREE
+  ANNULEE
+}
+
+enum ActionAudit {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  RESTORE
+  CHANGE_STATUS
+  GENERATE_INVOICE
+  ADD_PAYMENT
+  REFUND
+  CANCEL
+  APPLY_DISCOUNT
+  STOCK_UPDATE
+}
