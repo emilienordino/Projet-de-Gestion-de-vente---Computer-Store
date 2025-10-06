@@ -19,7 +19,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
 
     const token = parts[1];
 
-    const decoded = JWTService.verifyToken(token);
+    const decoded = JWTService.verifyToken(token); 
     
     req.user = decoded;
     
